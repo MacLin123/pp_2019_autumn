@@ -46,7 +46,7 @@ TEST(Count_Diff_Char_MPI, Count_Diff_Char_Same_Str) {
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   std::string str1, str2;
   str1 = "123456789";
-  str2 = "123455789";
+  str2 = "123456789";
   int countDiff;
   countDiff = getCountDiffChPar(str1, str2);
   if (rank == 0) {
