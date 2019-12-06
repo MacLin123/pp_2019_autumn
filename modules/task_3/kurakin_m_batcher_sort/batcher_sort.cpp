@@ -120,12 +120,7 @@ int *BatcherSort(int *arrIn, int size) {
     int sizeNew =
         size + ((size % proc_count) ? (proc_count - (size % proc_count)) : 0);
     int elems_per_proc_size = sizeNew / proc_count;
-    int *arrRes = nullptr;
-    try {
-        arrRes = new int[sizeNew];
-    } catch (std::bad_alloc) {
-        return nullptr;
-    }
+    int *arrRes = new int[sizeNew];
     for (int i = 0; i < size; i++) {
         arrRes[i] = arrIn[i];
     }
