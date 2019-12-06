@@ -32,7 +32,7 @@ TEST(Batcher_Sort_MPI, Throw_Exception_When_Size_Is_Wrong) {
 TEST(Batcher_Sort_MPI, Array_sorted_properly) {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    int size = 1000;
+    int size = 10;
     int* arr;
     if (rank == 0) {
         arr = CreateArray(size);

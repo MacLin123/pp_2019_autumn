@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <ctime>
 #include <random>
-#include <string>
 #include <utility>
 #include <vector>
 
@@ -91,12 +90,11 @@ void CreateSortNet(int numProcs) {
 int *CreateArray(int size) {
     if (size < 1) return NULL;
     std::mt19937 gen;
-    std::uniform_int_distribution<> uid(-32000, 32000);
-    gen.seed(time(0));
+    gen.seed(static_cast<unsigned int>(time(0)));
 
     int *array = new int[size];
     for (int i = 0; i < size; i++) {
-        array[i] = uid(gen);
+        array[i] = gen() % 64001 - 32000;
     }
     return array;
 }
