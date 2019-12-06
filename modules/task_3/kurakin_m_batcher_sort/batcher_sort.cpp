@@ -16,9 +16,9 @@ struct TPair {
 std::vector<TPair> comparators;
 
 int compare_int(const void *a, const void *b) {
-    if (*static_cast<int*>(a) < *static_cast<int*>(b))
+    if (*static_cast<const int*>(a) < *static_cast< const int*>(b)) {
         return -1;
-    } else if (*static_cast<int*>(a) == *static_cast<int*>(b)) {
+    } else if (*static_cast<const int*>(a) == *static_cast<const int*>(b)) {
         return 0;
     } else {
         return 1;
@@ -124,7 +124,6 @@ int *BatcherSort(int *arrIn, int size) {
     try {
         arrRes = new int[sizeNew];
     } catch (std::bad_alloc) {
-        std::cout << "cannot allocate memory";
         return nullptr;
     }
     for (int i = 0; i < size; i++) {
