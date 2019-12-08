@@ -3,32 +3,18 @@
 #include <mpi.h>
 #include <algorithm>
 #include <ctime>
+#include <iostream>
 #include <random>
 #include <utility>
 #include <vector>
 
-struct TPair {
-    int a;
-    int b;
-};
-
-std::vector<TPair> comparators;
-
-int compare_int(const void *a, const void *b) {
-    if (*static_cast<const int*>(a) < *static_cast< const int*>(b)) {
-        return -1;
-    } else if (*static_cast<const int*>(a) == *static_cast<const int*>(b)) {
-        return 0;
-    } else {
-        return 1;
-    }
-}
+std::vector<std::pair<int, int>> comparators;
 
 void GatComparators(std::vector<int> procs_up, std::vector<int> procs_down) {
     int procCount = procs_up.size() + procs_down.size();
     if (procCount == 1) return;
     if (procCount == 2) {
-        TPair tmpPair{procs_up[0], procs_down[0]};
+        std::pair<int, int> tmpPair{procs_up[0], procs_down[0]};
         comparators.push_back(tmpPair);
         return;
     }
@@ -60,7 +46,7 @@ void GatComparators(std::vector<int> procs_up, std::vector<int> procs_down) {
               procsAll.begin() + procs_up.size());
 
     for (uint32_t i = 1; i < procsAll.size() - 1; i += 2) {
-        TPair tmpPair{procsAll[i], procsAll[i + 1]};
+        std::pair<int, int> tmpPair{procsAll[i], procsAll[i + 1]};
         comparators.push_back(tmpPair);
     }
 }
@@ -87,30 +73,28 @@ void CreateSortNet(int numProcs) {
     getOddEvenSortNet(procs);
 }
 
-int *CreateArray(int size) {
-    if (size < 1) return NULL;
+void CreateArray(std::vector<int> *array) {
+    if (array->size() < 1) return;
+
     std::mt19937 gen;
     gen.seed(static_cast<unsigned int>(time(0)));
 
-    int *array = new int[size];
-    for (int i = 0; i < size; i++) {
-        array[i] = gen() % 64001 - 32000;
+    for (uint32_t i = 0; i < array->size(); i++) {
+        (*array)[i] = gen() % 64001 - 32000;
     }
-    return array;
+    return;
 }
 
-int *BatcherSort(int *arrIn, int size) {
+void BatcherSort(std::vector<int> *arrIn) {
     MPI_Status status;
 
     int rank, proc_count;
+    int size = arrIn->size();
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &proc_count);
 
     if (size <= 0) {
         throw "wrong size";
-    }
-    if (arrIn == nullptr) {
-        throw "arr can't be null";
     }
 
     CreateSortNet(proc_count);
@@ -118,29 +102,27 @@ int *BatcherSort(int *arrIn, int size) {
     int sizeNew =
         size + ((size % proc_count) ? (proc_count - (size % proc_count)) : 0);
     int elems_per_proc_size = sizeNew / proc_count;
-    int *arrRes = new int[sizeNew];
-    for (int i = 0; i < size; i++) {
-        arrRes[i] = arrIn[i];
-    }
+
     for (int i = size; i < sizeNew; i++) {
-        arrRes[i] = INT32_MIN;
+        arrIn->push_back(INT16_MIN);
     }
 
-    int *elems_res = new int[elems_per_proc_size];
-    int *elems_cur = new int[elems_per_proc_size];
-    int *elems_tmp = new int[elems_per_proc_size];
+    std::vector<int> elems_res(elems_per_proc_size);
+    std::vector<int> elems_cur(elems_per_proc_size);
+    std::vector<int> elems_tmp(elems_per_proc_size);
 
-    MPI_Scatter(arrRes, elems_per_proc_size, MPI_INT, elems_res,
+    MPI_Scatter(&(*arrIn)[0], elems_per_proc_size, MPI_INT, &elems_res[0],
                 elems_per_proc_size, MPI_INT, 0, MPI_COMM_WORLD);
 
-    qsort(elems_res, elems_per_proc_size, sizeof(int), compare_int);
+    std::sort(elems_res.begin(), elems_res.end());
+
     for (uint32_t i = 0; i < comparators.size(); i++) {
-        TPair comparator = comparators[i];
-        if (rank == comparator.a) {
-            MPI_Send(elems_res, elems_per_proc_size, MPI_INT, comparator.b, 0,
-                     MPI_COMM_WORLD);
-            MPI_Recv(elems_cur, elems_per_proc_size, MPI_INT, comparator.b, 0,
-                     MPI_COMM_WORLD, &status);
+        std::pair<int, int> comparator = comparators[i];
+        if (rank == comparator.first) {
+            MPI_Send(&elems_res[0], elems_per_proc_size, MPI_INT,
+                     comparator.second, 0, MPI_COMM_WORLD);
+            MPI_Recv(&elems_cur[0], elems_per_proc_size, MPI_INT,
+                     comparator.second, 0, MPI_COMM_WORLD, &status);
 
             for (int resInd = 0, curInd = 0, tmpInd = 0;
                  tmpInd < elems_per_proc_size; tmpInd++) {
@@ -155,12 +137,12 @@ int *BatcherSort(int *arrIn, int size) {
                 }
             }
 
-            std::swap(elems_res, elems_tmp);
-        } else if (rank == comparator.b) {
-            MPI_Recv(elems_cur, elems_per_proc_size, MPI_INT, comparator.a, 0,
-                     MPI_COMM_WORLD, &status);
-            MPI_Send(elems_res, elems_per_proc_size, MPI_INT, comparator.a, 0,
-                     MPI_COMM_WORLD);
+            elems_res.swap(elems_tmp);
+        } else if (rank == comparator.second) {
+            MPI_Recv(&elems_cur[0], elems_per_proc_size, MPI_INT,
+                     comparator.first, 0, MPI_COMM_WORLD, &status);
+            MPI_Send(&elems_res[0], elems_per_proc_size, MPI_INT,
+                     comparator.first, 0, MPI_COMM_WORLD);
             int start = elems_per_proc_size - 1;
             for (int resInd = start, curInd = start, tmpInd = start;
                  tmpInd >= 0; tmpInd--) {
@@ -174,28 +156,16 @@ int *BatcherSort(int *arrIn, int size) {
                     curInd--;
                 }
             }
-            std::swap(elems_res, elems_tmp);
+            elems_res.swap(elems_tmp);
         }
     }
-    // union
-    MPI_Gather(elems_res, elems_per_proc_size, MPI_INT, arrRes,
+
+    MPI_Gather(&elems_res[0], elems_per_proc_size, MPI_INT, &(*arrIn)[0],
                elems_per_proc_size, MPI_INT, 0, MPI_COMM_WORLD);
 
     int elDiff = sizeNew - size;
-    if (rank == 0) {
-        if (elDiff) {  // repacking
-            int *arrTemp = new int[size];
-            for (int32_t i = 0; i < size; i++) {
-                arrTemp[i] = arrRes[i + elDiff];
-            }
-            delete[] arrRes;
-            arrRes = arrTemp;
-            arrTemp = nullptr;
-        }
+    if (rank == 0 && elDiff) {
+        arrIn->erase(arrIn->begin(), arrIn->begin() + elDiff);
     }
-
-    delete[] elems_res;
-    delete[] elems_tmp;
-    delete[] elems_cur;
-    return arrRes;
+    return;
 }
